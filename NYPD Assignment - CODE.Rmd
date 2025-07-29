@@ -1,0 +1,262 @@
+---
+title: "NYPD Assignment"
+author: "Cameron S."
+date: "2025-07-28"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Libraries
+```{r}
+library(tidyverse)
+library(lubridate)
+```
+
+
+## NYPD Shooting Incident Report Data
+
+```{r}
+
+##################
+# NYPD data load
+
+nypd_data <- read_csv("NYPD_Shooting_Incident_Data__Historic_.csv")
+#nypd_data <- read_csv("Masters Coursework/Data Science as a Field/NYPD_Shooting_Incident_Data__Historic_.csv")
+
+```
+
+## Data Cleaning and Manipulation
+
+```{r}
+# Drop columns that we don't need
+# Initial Thoughts: can compare perp to vic data, can visualize frequencies of perp and vic ages, can visualize latitude and longitude on cartesian coordinates,
+#                   can analyze BORO/PRECINCT statistics, can analyze date statistics, and look more into location of occurance descriptions
+nypd_data <- nypd_data %>% select(OCCUR_DATE,BORO,LOC_OF_OCCUR_DESC,PRECINCT,PERP_AGE_GROUP,PERP_SEX,PERP_RACE,VIC_AGE_GROUP,VIC_SEX,VIC_RACE,Latitude,Longitude) %>%
+                           mutate(OCCUR_DATE = mdy(OCCUR_DATE))
+
+# Rename column names
+nypd_data <- nypd_data %>% rename(date = "OCCUR_DATE", boro = "BORO", location_desc = "LOC_OF_OCCUR_DESC", precinct = "PRECINCT", perp_age_group = "PERP_AGE_GROUP",
+                                  perp_sex = "PERP_SEX", perp_race = "PERP_RACE", vic_age_group = "VIC_AGE_GROUP", vic_sex = "VIC_SEX", vic_race = "VIC_RACE")
+
+# Get summary statistics
+summary(nypd_data)
+
+
+# Split data
+
+perp_data <- nypd_data %>% select(perp_age_group, perp_sex, perp_race)
+
+vic_data <- nypd_data %>% select(vic_age_group, vic_sex, vic_race)
+
+pv_data <- nypd_data %>% select(perp_age_group, perp_sex, perp_race, vic_age_group, vic_sex, vic_race)
+
+location_data <- nypd_data %>% select(boro, precinct, Latitude, Longitude)
+
+
+```
+
+The years go from 2006 to 2024, so there a lot of years worth of data. The years also came in characters, so I had to mutate them to be a date object.
+There are many null values in the columns location desc, perp_age_group, perp_sex, perp_race, Latitude, and Longitude.
+Before removing these, it is worth noting how many null values there are.
+
+```{r}
+
+# Number of null in location_desc: 25596 out of 29744
+sum(is.na(nypd_data$location_desc))
+
+# Number of null in perp_age_group: 9344 out of 29744
+sum(is.na(nypd_data$perp_age_group))
+
+# Number of null in perp_sex: 9310 out of 29744
+sum(is.na(nypd_data$perp_sex))
+
+# Number of null in perp_race: 9310 out of 29744
+sum(is.na(nypd_data$perp_race))
+
+# Number of null in Latitude: 97 out of 29744
+sum(is.na(nypd_data$Latitude))
+
+# Number of null in Longitude: 97 out of 29744
+sum(is.na(nypd_data$Longitude))
+
+```
+
+The majority of the shooting incidents appear to lack a location description. This is interesting because the Latitude and Longitudes are only missing 97 values.
+This discrepancy could be because of 911 calls knowing the general area (Latitude and Longitude), but not whether the shooting occured inside or outside (location_desc)
+
+With certain analysis, I will exclude the location_desc column due to it's lack of data.
+
+
+## Perp and Vic analysis
+
+Next, I am curious about the age groups of both the perp and the vic. I will create bar plots of both of them to get the frequencies of each age group in both columns
+
+```{r}
+
+# First drop na values from perp data set.
+# There are also strings of (null) that appear 1628 times that should be removed.
+perp_data <- perp_data %>% drop_na()
+perp_data <- filter(perp_data, perp_age_group != "(null)")
+
+# Drop na values and (null) strings from vic data set
+vic_data <- vic_data %>% drop_na()
+vic_data <- filter(vic_data, vic_age_group != "(null)")
+
+
+# Visualize the bar plot of the age groups for PERPs
+barplot(table(perp_data$perp_age_group), xlab = "Age Group", ylab = "Count", main="Counts of each Perp Age Group", col=rainbow(length(table(perp_data$perp_age_group))))
+
+# Visualize the bar plot of the age groups for VICs
+barplot(table(vic_data$vic_age_group), xlab = "Age Group", ylab = "Count", main="Counts of each Vic Age Group", col=rainbow(length(table(vic_data$vic_age_group))))
+
+```
+
+These bar plots tell us that the perps are mostly in the 18-24 and 25-44 age groups. This range does appear to cover a lot of ages though. However, something else to note is that there are roughly 7000 in the 18-24 age group and roughly 6500 in the 25-44 age group. There is a large portion in the UNKNOWN category and a lot of NA and (null) values were removed. 
+
+What we can say is that with the known data, there are more perps that are younger than older. The missing data tells us that a lot of the time, the perps get away with the killings.
+
+The vic graph tells a different story. THe vic graph says that almost 13000-14000 of the vics are in the 25-44 age group and 10000-11000 are in the 18-24 age group. There are far fewer unknown and missing values.
+
+What we can draw from this is that more of the vics are older, and since they are victims of a shooting, they do not necessarily run away. This is how the police have a report on the victims ages, sex, and race.
+
+Next I want to see the counts of each sex and the counts of each race in each dataset.
+
+```{r}
+
+# Counts of M/F in perp_sex
+table(perp_data$perp_sex)
+
+# Counts of M/F in vic_sex
+table(vic_data$vic_sex)
+
+# Counts of each race in perp_sex
+table(perp_data$perp_race)
+
+# Counts of each race in vic_sex
+table(vic_data$vic_race)
+
+
+```
+
+What we can see from these counts is the majority of both vics and perps are male. There are more unknown in the perps due to them potentially getting away with the shooting.
+
+The race is also interesting to see because the pattern is also essentially the same for both vic and perp data. 
+The largest values for perps from largest to smallest is BLACK, WHITE HISPANIC, UNKNOWN, BLACK HISPANIC, WHITE, ASIAN / PACIFIC ISLANDER, and AMERICAN INDIAN/ALASKAN NATIVE.
+The largest values for vics from largest to smallest is BLACK, WHITE HISPANIC, BLACK HISPANIC, WHITE, ASIAN / PACIFIC ISLANDER, UNKNOWN, AMERICAN INDIAN/ALASKAN NATIVE.
+
+The values after the top 4 are much smaller than the rest. However, the top 3 for both categories are the same. This information could be very useful for the police, but any analysis using this information would only be speculation at best.
+
+This wraps up my analysis of the perp and vic data.
+
+Next I will look at the location data.
+
+## Location Analysis
+
+Lets take a look at the counts of each variable in the boro and precinct columns. Then we will look at some more data from there.
+
+
+```{r}
+
+# Boro value counts
+table(location_data$boro)
+
+# Precincy value counts
+table(location_data$precinct)
+
+# Clean na values
+location_data <- location_data %>% drop_na()
+
+# Visualize longitude and latitude in scatter plot
+location_data %>% ggplot() + geom_point(aes(x = Latitude, y = Longitude), color="red")
+
+
+
+```
+
+I also ended up creating a scatter plot of the locations. It looks interesting, but not a lot of information can be gathered from it. It is possible to see some high density areas though, which might be specific boroughs having higher number of shooting incidents.
+
+I decided to google the population values for each of the boroughs in New York City (Source from https://datacommons.org).
+Brooklyn: 2.6 mil
+Bronx: 1.4 mil
+Queens: 2.3 mil
+Manhattan: 1.6 mil
+Staten Island 0.4 mil
+
+Interestingly, Queens is third in the list of number of shooting incidents, but is second largest in population. It is much larger in population than Bronx with nearly half the number of shooting incidents.
+
+I also looked at the number of incidents per precinct, but the data is very scattered and hard to follow. 
+
+I think what might be a better way to look at the data is by looking at incidents per day. This way I can find out number of incidents per year and potentially create a model to predict incidents. Since the data shows a single victim, I will be considering each entry to be a single incident.
+
+
+```{r}
+
+# Add 1 incident column
+incident_data <- nypd_data %>% select(date)
+incident_data$incident_count <- 1
+
+# Get year column
+incident_data$year <- year(incident_data$date)
+incident_data  <- incident_data %>% select(year, incident_count)
+
+# Combine multiple dates to get total number of incidents per date
+incident_data <- data.frame(table(incident_data)) %>% select(year, Freq) %>% rename(incident_count = "Freq")
+
+# Convert year object to int (from 1-19 instead of 2006-2024)
+incident_data$year <- as.integer(incident_data$year)
+
+# Summary stats per year
+summary(incident_data)
+
+
+```
+
+
+Interestingly, the max number of incidents in a given year is 2055 and the lowest is 958. This tells us that there is potential for some outliers, but not likely due to the quartiles being moderate increments apart from the other stats. This is something to consider when creating the model.
+
+
+
+## Data Model
+
+```{r}
+
+
+# Deaths per thousand as represented by cases per thousand
+mod <- lm(incident_count ~ year, data = incident_data)
+
+# Predict on US state totals
+test_pred <- incident_data %>% mutate(pred = predict(mod))
+
+# Plot predicted values compared to actual values
+test_pred %>% ggplot() + geom_point(aes(x = year, y = incident_count), color="blue") + 
+                  geom_point(aes(x = year, y = pred), color = "red")
+
+```
+
+
+## Bias and Conclusions
+
+For my NYPD dataset assignment, I worked to analyse the relationships between locations and incidents, perpetrator and victim relationships, perpetrator and age-group relationships, and victim and age-group relationships. I was able to find that due to the data for perpetrators not being complete, the final analysis of the perpetrators was not likely to be complete either. However, continuing with the removing NA values, the perpetrator data showed a large number of incidents involved males and people between the ages of 18-24 and 25-44. The victims similarly had a large number of instances of males and being between the ages of 18-24 and 25-44. The perpetrator data not containing every data point due to null values shows far fewer counts. This could lead to more analysis of this and what the sex and ages of the perpetrators that got away were. I also looked at the races of the victims and perpetrators and the top 3 groups were the same for both. This could mean many things, but the most important is that they are likely the largest population groups of the area. Any further analysis is likely just speculation.
+
+For the location information, I created a visualization of the latitude and longitude data on a cartesian coordinate system. This didn't provide too much context besides an interesting visual. Something that could be derived from the visual is there are certain areas with a higher density of incidents. This could also be from an increase in population in the areas and not much else. I also looked at the number of incidents per borough and found a couple of interesting things. The first is that the most number of incidents occured in the most populated borough, but the second and third in population are swapped in the incident counts. The Bronx had nearly twice the number of incidents compared to Queens, but Queens had a population of nearly 1 million more people. This could show that the Bronx is not as safe as other areas in New York, that Queens is much safer as an area, or something else entirely.
+
+For my model, I looked to model incidents as a function of time. I started off by using days, but instead transitioned to years. In this way, I was able to see that there is a general negative linear relationship between the number of incidents in New York city over time. This could be due to many factors, but one is that the NYPD is doing better to make New York City a safer place. There are some standout years in recent years. This is why I changed to years and changed the years to numbers from 1-19 instead of 2006-2024. Due to personal bias of Covid 19, I looked as only years and no other statistics. The recent downward trend with the exception of years 15 and 16 are a consistent pattern. After doing analysis though, going back to the actual years, we can see that years 15 and 16 are 2020 and 2021 respectively. This means that the early years of COVID had a potential large impact on shootings in New York City. Diving further into the reasoning for this would only lead to speculation and present more personal bias which is why I left the actual years out of it.
+
+
+
+## Appendix
+
+```{r}
+sessionInfo()
+```
+
+
+
+
+
+
